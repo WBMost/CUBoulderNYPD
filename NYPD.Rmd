@@ -1,0 +1,109 @@
+---
+title: "NYPD Shooting Data Report"
+author: "Wyatt M"
+date: "2024-02-26"
+output:
+  html_document: default
+  pdf_document: default
+---
+```{r preset}
+library(tidyverse)
+# in case we do anything with random variables
+set.seed(42)
+```
+## Importing Data
+
+To import the data, I did exactly as in the video but using the "NYDP Shooting Incident Data (Historic)" csv. I set a variable to be the required [download url](https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD) and used the "read.csv()" function to call that variable and now have the csv stored as a table.
+
+### Data Description
+
+"List of every shooting incident that occurred in NYC going back to 2006 through the end of the previous calendar year."
+
+```{r sample}
+# importing data
+nypd_data_url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+nypd_csv <- read.csv(nypd_data_url)
+
+nypd_csv[sample(nrow(nypd_csv),3),]
+```
+
+## Tidying Up
+
+For this data to be useful it needs to be cleaned up a little and have data types reformatted. The first step will be to set the date and times to not be char sets anymore.
+```{r reformatting}
+# reformat 
+nypd_df <- mutate(nypd_csv, OCCUR_DATE = mdy(OCCUR_DATE))
+nypd_df <- mutate(nypd_df,  OCCUR_TIME = hms(OCCUR_TIME))
+
+# drop not needed columns
+drop <- c("PRECINCT","X_COORD_CD","Y_COORD_CD","Latitude","Longitude","Lon_Lat")
+nypd_df <- nypd_df[,!(names(nypd_df) %in% drop)]
+```
+
+## Visualizing
+
+Now we have the data cleaned up and reformatted, I want to look into which Boroughs had the highest perpetrator rates along with segregating by sex. This will allow us to see the difference not only between the different boroughs but also who is more likely to commit and act of violence with a firearm based on sex. 
+
+```{r ggploting}
+# ggplot a bar graph
+ggplot(nypd_df, aes(fill=PERP_SEX, x=BORO)) +
+  geom_bar()+
+  ylab('number of cases')
+```
+
+### Further Tidying
+
+Due to how much incomplete data there is in the table, we should clean up the empty and null values so it doesn't clutter the data.
+
+```{r more cleaning}
+# drop rows where sex is not M or F
+nypd_perp_sex_df <- nypd_df[nypd_df$PERP_SEX %in% c("M","F"),]
+
+# now re-plot the graph
+ggplot(nypd_perp_sex_df, aes(fill=PERP_SEX, x=BORO)) +
+  geom_bar()+
+  ylab('number of cases')+
+  labs(title = 'Sex of Perps')
+
+# drop rows where sex is not M or F
+nypd_vic_sex_df <- nypd_df[nypd_df$VIC_SEX %in% c("M","F"),]
+
+# now re-plot the graph
+ggplot(nypd_vic_sex_df, aes(fill=VIC_SEX, x=BORO)) +
+  geom_bar()+
+  ylab('number of cases')+
+  labs(title = 'Sex of Victims')
+```
+
+## When Did These Occur?
+
+For this section I would like to look into what months these incidents occurred. Maybe there are indicators that there are just months where people feel more or less violent during the year.
+
+```{r months}
+# using the more raw df without the removal of unknown sex of perp
+# also set months in order
+ordered_df <- nypd_csv[order(as.Date(nypd_csv$OCCUR_DATE, format="%m/%d/%Y")), ]
+# now properly format the dates
+ordered_df <- mutate(ordered_df, OCCUR_DATE = mdy(OCCUR_DATE))
+
+# plot the graph with the in order dates
+ggplot(ordered_df, aes( x=fct_inorder(months(OCCUR_DATE)))) +
+  geom_bar() +
+  xlab('months')+
+  ylab('number of cases')+
+  labs(title = 'Cases by Month')
+
+ordered_df <- nypd_csv[order(as.Date(nypd_csv$OCCUR_DATE, format="%m/%d/%Y")), ]
+# now properly format the dates
+ordered_df <- mutate(ordered_df, OCCUR_DATE = mdy(OCCUR_DATE))
+
+ggplot(ordered_df, aes( x=year(OCCUR_DATE))) +
+  geom_bar() +
+  xlab('years')+
+  ylab('number of cases')+
+  labs(title = 'Cases by Year')
+```
+
+## Conclusions
+
+From these graphs we can figure out that majority of the gun violence crimes occur within Brooklyn by males and will most likely happen during the summer/middle of the year.Some bias can come from the fact that some data was missing for some of the cases. This missing data could help balance out the difference between sexes in the perpetrators but overall I believe these graphs hold a decent representation. 
